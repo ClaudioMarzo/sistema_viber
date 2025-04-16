@@ -24,6 +24,12 @@ export default {
 				ring: 'hsl(var(--ring))',
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
+        viber: {
+          purple: '#2D1B4E',
+          gold: '#D4AF37',
+          dark: '#1A1A1A',
+          light: '#F5F5F5',
+        },
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))'
