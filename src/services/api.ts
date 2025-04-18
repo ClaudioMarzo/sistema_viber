@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 import { Produto, Venda, DadosGrafico } from '@/lib/types';
 
