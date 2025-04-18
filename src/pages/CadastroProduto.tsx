@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ProdutoService, generateId } from "@/services/storage";
+import { ProdutoService, generateId } from "@/services/api";
 import { Produto } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ImageIcon, Save } from "lucide-react";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 
 export default function CadastroProduto() {
   const [nome, setNome] = useState("");
   const [preco, setPreco] = useState("");
   const [imagem, setImagem] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -28,7 +31,32 @@ export default function CadastroProduto() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const cadastrarProdutoMutation = useMutation({
+    mutationFn: (produto: Produto) => ProdutoService.save(produto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      toast.success("Produto cadastrado com sucesso!");
+      
+      // Limpar o formulário
+      setNome("");
+      setPreco("");
+      setImagem("");
+      setPreviewImage(null);
+      
+      // Resetar o input de arquivo
+      const fileInput = document.getElementById("imagem") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      
+      setIsSubmitting(false);
+    },
+    onError: (error) => {
+      console.error("Erro ao cadastrar produto:", error);
+      toast.error("Erro ao cadastrar produto");
+      setIsSubmitting(false);
+    }
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!nome || !preco || !imagem) {
@@ -43,6 +71,8 @@ export default function CadastroProduto() {
       return;
     }
     
+    setIsSubmitting(true);
+    
     const novoProduto: Produto = {
       id: generateId(),
       nome,
@@ -50,19 +80,7 @@ export default function CadastroProduto() {
       imagem
     };
     
-    ProdutoService.save(novoProduto);
-    
-    toast.success("Produto cadastrado com sucesso!");
-    
-    // Limpar o formulário
-    setNome("");
-    setPreco("");
-    setImagem("");
-    setPreviewImage(null);
-    
-    // Resetar o input de arquivo
-    const fileInput = document.getElementById("imagem") as HTMLInputElement;
-    if (fileInput) fileInput.value = "";
+    cadastrarProdutoMutation.mutate(novoProduto);
   };
 
   return (
@@ -86,6 +104,7 @@ export default function CadastroProduto() {
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
                     className="bg-zinc-700 border-zinc-600 text-white"
+                    disabled={isSubmitting}
                   />
                 </div>
                 
@@ -97,6 +116,7 @@ export default function CadastroProduto() {
                     value={preco}
                     onChange={(e) => setPreco(e.target.value)}
                     className="bg-zinc-700 border-zinc-600 text-white"
+                    disabled={isSubmitting}
                   />
                 </div>
                 
@@ -109,6 +129,7 @@ export default function CadastroProduto() {
                       accept="image/*"
                       onChange={handleImageChange}
                       className="bg-zinc-700 border-zinc-600 text-white"
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -131,9 +152,13 @@ export default function CadastroProduto() {
             </div>
             
             <div className="flex justify-end">
-              <Button type="submit" className="bg-viber-gold hover:bg-viber-gold/80 text-black">
+              <Button 
+                type="submit" 
+                className="bg-viber-gold hover:bg-viber-gold/80 text-black"
+                disabled={isSubmitting}
+              >
                 <Save className="h-4 w-4 mr-2" />
-                Salvar Produto
+                {isSubmitting ? "Salvando..." : "Salvar Produto"}
               </Button>
             </div>
           </form>

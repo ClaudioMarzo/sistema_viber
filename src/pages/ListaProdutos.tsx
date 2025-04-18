@@ -1,6 +1,6 @@
 
-import { useState, useEffect } from "react";
-import { ProdutoService } from "@/services/storage";
+import { useState } from "react";
+import { ProdutoService } from "@/services/api";
 import { Produto } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Pencil, Trash2, Search, ImageIcon } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function ListaProdutos() {
-  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [filtro, setFiltro] = useState("");
   const [produtoEditando, setProdutoEditando] = useState<Produto | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -25,15 +25,13 @@ export default function ListaProdutos() {
   const [preco, setPreco] = useState("");
   const [imagem, setImagem] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-
-  useEffect(() => {
-    carregarProdutos();
-  }, []);
-
-  const carregarProdutos = () => {
-    const produtosCarregados = ProdutoService.getAll();
-    setProdutos(produtosCarregados);
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+  
+  const { data: produtos = [], isLoading, error } = useQuery({
+    queryKey: ['produtos'],
+    queryFn: ProdutoService.getAll
+  });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,6 +55,33 @@ export default function ListaProdutos() {
     setDialogOpen(true);
   };
 
+  const atualizarProdutoMutation = useMutation({
+    mutationFn: (produto: Produto) => ProdutoService.save(produto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      toast.success("Produto atualizado com sucesso!");
+      setDialogOpen(false);
+      setIsSubmitting(false);
+    },
+    onError: (error) => {
+      console.error("Erro ao atualizar produto:", error);
+      toast.error("Erro ao atualizar produto");
+      setIsSubmitting(false);
+    }
+  });
+
+  const excluirProdutoMutation = useMutation({
+    mutationFn: (id: string) => ProdutoService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      toast.success("Produto excluído com sucesso!");
+    },
+    onError: (error) => {
+      console.error("Erro ao excluir produto:", error);
+      toast.error("Erro ao excluir produto");
+    }
+  });
+
   const handleSalvar = () => {
     if (!produtoEditando) return;
     
@@ -72,6 +97,8 @@ export default function ListaProdutos() {
       return;
     }
     
+    setIsSubmitting(true);
+    
     const produtoAtualizado: Produto = {
       id: produtoEditando.id,
       nome,
@@ -79,24 +106,32 @@ export default function ListaProdutos() {
       imagem: imagem || produtoEditando.imagem
     };
     
-    ProdutoService.save(produtoAtualizado);
-    toast.success("Produto atualizado com sucesso!");
-    
-    setDialogOpen(false);
-    carregarProdutos();
+    atualizarProdutoMutation.mutate(produtoAtualizado);
   };
 
   const handleExcluir = (id: string) => {
     if (confirm("Tem certeza que deseja excluir este produto?")) {
-      ProdutoService.delete(id);
-      toast.success("Produto excluído com sucesso!");
-      carregarProdutos();
+      excluirProdutoMutation.mutate(id);
     }
   };
 
   const produtosFiltrados = produtos.filter(p => 
     p.nome.toLowerCase().includes(filtro.toLowerCase())
   );
+
+  if (error) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-red-500">Erro ao carregar produtos. Verifique se o servidor está em execução.</p>
+        <Button 
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['produtos'] })}
+          className="mt-4"
+        >
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -117,7 +152,11 @@ export default function ListaProdutos() {
         </div>
       </div>
       
-      {produtosFiltrados.length === 0 ? (
+      {isLoading ? (
+        <div className="text-center p-8">
+          <p className="text-gray-400">Carregando produtos...</p>
+        </div>
+      ) : produtosFiltrados.length === 0 ? (
         <div className="text-center p-8 bg-zinc-800 rounded-lg border border-zinc-700">
           <p className="text-gray-400">Nenhum produto encontrado. Cadastre um novo produto na seção de cadastro.</p>
         </div>
@@ -184,6 +223,7 @@ export default function ListaProdutos() {
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 className="bg-zinc-700 border-zinc-600 text-white"
+                disabled={isSubmitting}
               />
             </div>
             
@@ -194,6 +234,7 @@ export default function ListaProdutos() {
                 value={preco}
                 onChange={(e) => setPreco(e.target.value)}
                 className="bg-zinc-700 border-zinc-600 text-white"
+                disabled={isSubmitting}
               />
             </div>
             
@@ -205,6 +246,7 @@ export default function ListaProdutos() {
                 accept="image/*"
                 onChange={handleImageChange}
                 className="bg-zinc-700 border-zinc-600 text-white"
+                disabled={isSubmitting}
               />
               
               <div className="mt-2 flex justify-center">
@@ -229,14 +271,16 @@ export default function ListaProdutos() {
               variant="outline" 
               onClick={() => setDialogOpen(false)}
               className="border-zinc-600 text-gray-200 hover:bg-zinc-700"
+              disabled={isSubmitting}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleSalvar}
               className="bg-viber-gold hover:bg-viber-gold/80 text-black"
+              disabled={isSubmitting}
             >
-              Salvar Alterações
+              {isSubmitting ? "Salvando..." : "Salvar Alterações"}
             </Button>
           </DialogFooter>
         </DialogContent>

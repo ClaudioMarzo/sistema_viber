@@ -1,75 +1,47 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { VendaService, TraceService } from "@/services/storage";
-import { DadosGrafico, Venda, FormaPagamento } from "@/lib/types";
+import { DashboardService, TraceService } from "@/services/api";
+import { DadosGrafico } from "@/lib/types";
 import { BarChart, PieChart, Pie, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 import { Banknote, CreditCard, Wallet, QrCode } from "lucide-react";
+import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Dashboard() {
-  const [dadosGrafico, setDadosGrafico] = useState<DadosGrafico>({
-    pix: 0,
-    credito: 0,
-    debito: 0,
-    dinheiro: 0,
-    totalVendas: 0,
-    produtosMaisVendidos: [],
-  });
-  
   const [dataAtual, setDataAtual] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
   
-  const [traceContent, setTraceContent] = useState<string>("");
-
-  useEffect(() => {
-    carregarDados(dataAtual);
-  }, [dataAtual]);
-
-  const carregarDados = (data: string) => {
-    const vendas = VendaService.getByDate(data);
-    const trace = TraceService.getTraceByDate(new Date(data));
-    setTraceContent(trace);
-    
-    // Calcular dados para os gráficos
-    const dadosCalculados = calcularDadosGrafico(vendas);
-    setDadosGrafico(dadosCalculados);
-  };
-
-  const calcularDadosGrafico = (vendas: Venda[]): DadosGrafico => {
-    const resultado: DadosGrafico = {
+  const { data: dadosGrafico, isLoading: isLoadingDados, error: dadosError } = useQuery({
+    queryKey: ['dashboard', dataAtual],
+    queryFn: () => DashboardService.getDadosByDate(dataAtual),
+    initialData: {
       pix: 0,
       credito: 0,
       debito: 0,
       dinheiro: 0,
       totalVendas: 0,
       produtosMaisVendidos: [],
-    };
+    }
+  });
 
-    // Mapa para contar vendas de produtos
-    const produtosContagem: Record<string, number> = {};
+  const { data: traceContent, isLoading: isLoadingTrace, error: traceError } = useQuery({
+    queryKey: ['trace', dataAtual],
+    queryFn: () => TraceService.getTraceByDate(new Date(dataAtual)),
+    initialData: ''
+  });
 
-    vendas.forEach(venda => {
-      resultado.totalVendas += venda.total;
-      
-      // Incrementar pagamentos por método
-      resultado[venda.formaPagamento] += venda.total;
-      
-      // Contar produtos vendidos
-      venda.itens.forEach(item => {
-        const nomeProduto = item.produto.nome;
-        produtosContagem[nomeProduto] = (produtosContagem[nomeProduto] || 0) + item.quantidade;
-      });
-    });
-
-    // Converter mapa de produtos para array e ordenar
-    resultado.produtosMaisVendidos = Object.entries(produtosContagem)
-      .map(([nome, quantidade]) => ({ nome, quantidade }))
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 5); // Top 5 produtos
-
-    return resultado;
-  };
+  useEffect(() => {
+    if (dadosError) {
+      toast.error("Erro ao carregar dados do dashboard");
+      console.error(dadosError);
+    }
+    if (traceError) {
+      toast.error("Erro ao carregar trace de vendas");
+      console.error(traceError);
+    }
+  }, [dadosError, traceError]);
 
   const CORES_PAGAMENTO = ["#D4AF37", "#B87333", "#C0C0C0", "#228B22"];
 
@@ -108,9 +80,11 @@ export default function Dashboard() {
               <metodo.icon className="h-4 w-4 text-gray-300" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-viber-gold">R$ {metodo.valor.toFixed(2).replace('.', ',')}</div>
+              <div className="text-2xl font-bold text-viber-gold">
+                {isLoadingDados ? "..." : `R$ ${metodo.valor.toFixed(2).replace('.', ',')}`}
+              </div>
               <p className="text-xs text-gray-400 mt-1">
-                {((metodo.valor / dadosGrafico.totalVendas) * 100 || 0).toFixed(1)}% das vendas
+                {isLoadingDados ? "..." : `${((metodo.valor / dadosGrafico.totalVendas) * 100 || 0).toFixed(1)}% das vendas`}
               </p>
             </CardContent>
           </Card>
@@ -124,26 +98,32 @@ export default function Dashboard() {
             <CardDescription>Distribuição das vendas por tipo de pagamento</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={dadosPagamento.filter(d => d.valor > 0)}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="valor"
-                >
-                  {dadosPagamento.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CORES_PAGAMENTO[index % CORES_PAGAMENTO.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `R$ ${Number(value).toFixed(2).replace('.', ',')}`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {isLoadingDados ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-gray-400">Carregando dados...</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={dadosPagamento.filter(d => d.valor > 0)}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="valor"
+                  >
+                    {dadosPagamento.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CORES_PAGAMENTO[index % CORES_PAGAMENTO.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `R$ ${Number(value).toFixed(2).replace('.', ',')}`} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -153,29 +133,39 @@ export default function Dashboard() {
             <CardDescription>Quantidade de cada produto vendido hoje</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={dadosGrafico.produtosMaisVendidos}
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#555" />
-                <XAxis 
-                  dataKey="nome"
-                  tick={{ fill: '#ccc' }}
-                  tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
-                />
-                <YAxis tick={{ fill: '#ccc' }} />
-                <Tooltip 
-                  formatter={(value) => [`${value} unidades`, "Quantidade"]}
-                  contentStyle={{ backgroundColor: '#333', border: '1px solid #555' }}
-                />
-                <Bar dataKey="quantidade">
-                  {dadosGrafico.produtosMaisVendidos.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CORES_PRODUTOS[index % CORES_PRODUTOS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {isLoadingDados ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-gray-400">Carregando dados...</p>
+              </div>
+            ) : dadosGrafico.produtosMaisVendidos.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <p className="text-gray-400">Nenhum produto vendido nesta data.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={dadosGrafico.produtosMaisVendidos}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+                  <XAxis 
+                    dataKey="nome"
+                    tick={{ fill: '#ccc' }}
+                    tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                  />
+                  <YAxis tick={{ fill: '#ccc' }} />
+                  <Tooltip 
+                    formatter={(value) => [`${value} unidades`, "Quantidade"]}
+                    contentStyle={{ backgroundColor: '#333', border: '1px solid #555' }}
+                  />
+                  <Bar dataKey="quantidade">
+                    {dadosGrafico.produtosMaisVendidos.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CORES_PRODUTOS[index % CORES_PRODUTOS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -186,7 +176,11 @@ export default function Dashboard() {
           <CardDescription>Registro detalhado das vendas do dia</CardDescription>
         </CardHeader>
         <CardContent>
-          {traceContent ? (
+          {isLoadingTrace ? (
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-gray-400">Carregando logs...</p>
+            </div>
+          ) : traceContent ? (
             <pre className="bg-zinc-900 p-4 rounded-md text-gray-300 text-sm font-mono h-64 overflow-y-auto">
               {traceContent}
             </pre>
