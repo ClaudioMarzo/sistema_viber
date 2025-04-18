@@ -1,5 +1,6 @@
 
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 
 // Connection Pool
 const pool = new Pool({

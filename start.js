@@ -1,20 +1,18 @@
 
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { spawn } from 'child_process';
 
 // Define os comandos para iniciar os serviços
 const commands = [
   {
     name: 'Docker',
-    command: 'docker-compose',
+    command: 'docker compose',
     args: ['up', '-d'],
     workingDir: process.cwd(),
   },
   {
     name: 'API',
     command: process.platform === 'win32' ? 'npx' : 'npx',
-    args: ['ts-node', './src/server.ts'],
+    args: ['tsx', './src/server.ts'],
     workingDir: process.cwd(),
   },
   {
@@ -84,7 +82,7 @@ process.on('SIGINT', () => {
   console.log('Encerrando todos os serviços...');
   
   // Para os containers Docker
-  spawn('docker-compose', ['down'], {
+  spawn('docker compose', ['down'], {
     cwd: process.cwd(),
     stdio: 'inherit',
     shell: true,
