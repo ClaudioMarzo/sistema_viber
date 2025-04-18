@@ -13,8 +13,8 @@ const commands = [
   },
   {
     name: 'API',
-    command: process.platform === 'win32' ? 'node' : 'node',
-    args: ['-r', 'esbuild-register', './src/server.ts'],
+    command: process.platform === 'win32' ? 'npx' : 'npx',
+    args: ['ts-node', './src/server.ts'],
     workingDir: process.cwd(),
   },
   {
