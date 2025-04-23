@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { ProdutoService, generateId } from "@/services/api";
+import { ProdutoService, generateId } from "@/services/storage";
 import { Produto } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ export default function CadastroProduto() {
   };
 
   const cadastrarProdutoMutation = useMutation({
-    mutationFn: (produto: Produto) => ProdutoService.save(produto),
+    mutationFn: async (produto: Produto) => ProdutoService.save(produto),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['produtos'] });
       toast.success("Produto cadastrado com sucesso!");

@@ -134,3 +134,41 @@ export const TraceService = {
 export const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 };
+
+// ...existing code...
+
+export const DashboardService = {
+  getDadosByDate: (date: string) => {
+    // Exemplo de implementação básica usando VendaService
+    const vendas = VendaService.getByDate(date);
+    let pix = 0, credito = 0, debito = 0, dinheiro = 0, totalVendas = 0;
+    const produtosMap: Record<string, { nome: string, quantidade: number }> = {};
+
+    vendas.forEach(venda => {
+      totalVendas += venda.total;
+      switch (venda.formaPagamento) {
+        case "pix": pix += venda.total; break;
+        case "credito": credito += venda.total; break;
+        case "debito": debito += venda.total; break;
+        case "dinheiro": dinheiro += venda.total; break;
+      }
+      venda.itens.forEach(item => {
+        if (!produtosMap[item.produto.nome]) {
+          produtosMap[item.produto.nome] = { nome: item.produto.nome, quantidade: 0 };
+        }
+        produtosMap[item.produto.nome].quantidade += item.quantidade;
+      });
+    });
+
+    const produtosMaisVendidos = Object.values(produtosMap).sort((a, b) => b.quantidade - a.quantidade);
+
+    return {
+      pix,
+      credito,
+      debito,
+      dinheiro,
+      totalVendas,
+      produtosMaisVendidos,
+    };
+  }
+};

@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DashboardService, TraceService } from "@/services/api";
+import { DashboardService, TraceService } from "@/services/storage";
 import { DadosGrafico } from "@/lib/types";
 import { BarChart, PieChart, Pie, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 import { Banknote, CreditCard, Wallet, QrCode } from "lucide-react";
